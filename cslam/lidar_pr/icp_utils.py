@@ -16,6 +16,7 @@ FIELDS_XYZ = [
     PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
 ]
 
+
 # Partially adapted from https://github.com/MIT-SPARK/TEASER-plusplus/tree/master/examples/teaser_python_fpfh_icp
 
 
@@ -93,6 +94,7 @@ def Rt2T(R, t):
 def downsample(points, voxel_size):
     open3d_cloud = open3d.geometry.PointCloud()
     open3d_cloud.points = open3d.utility.Vector3dVector(points)
+    open3d_cloud = open3d_cloud.remove_non_finite_points(remove_infinite=True)
     return open3d_cloud.voxel_down_sample(voxel_size=voxel_size)
 
 
@@ -160,16 +162,18 @@ def ros_to_open3d(msg):
     points = ros_pointcloud_to_points(msg)
     open3d_cloud = open3d.geometry.PointCloud()
     open3d_cloud.points = open3d.utility.Vector3dVector(points)
+    open3d_cloud = open3d_cloud.remove_non_finite_points(remove_infinite=True)
     return open3d_cloud
 
 
 def ros_pointcloud_to_points(pc_msg):
-    return pc2_utils.read_points_numpy_filtered(pc_msg)[:, :3]
+    return pc2_utils.read_points_numpy_filtered(pc_msg, skip_nans=True)[:, :3]
 
 
 def downsample_ros_pointcloud(pc_msg, voxel_size):
     points = ros_pointcloud_to_points(pc_msg)
     return downsample(points, voxel_size)
+
 
 def compute_transform(src, dst, voxel_size, min_inliers):
     """Computes a 3D transform between 2 point clouds using TEASER++.

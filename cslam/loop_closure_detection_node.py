@@ -5,6 +5,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.clock import Clock
+from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image
 
 from cslam.global_descriptor_loop_closure_detection import GlobalDescriptorLoopClosureDetection
@@ -19,16 +20,16 @@ class LoopClosureDetection(Node):
 
         self.declare_parameters(
             namespace='',
-            parameters=[('frontend.similarity_threshold', None),
-                        ('frontend.global_descriptor_technique', None),
-                        ('frontend.netvlad.pca_checkpoint', None), ('frontend.nn_checkpoint', None),
-                        ('robot_id', None), ('max_nb_robots', None),
+            parameters=[('frontend.similarity_threshold', Parameter.Type.DOUBLE),
+                        ('frontend.global_descriptor_technique', Parameter.Type.STRING),
+                        ('frontend.netvlad.pca_checkpoint', "disable"), ('frontend.nn_checkpoint', "disable"),
+                        ('robot_id', Parameter.Type.INTEGER), ('max_nb_robots', Parameter.Type.INTEGER),
                         ('frontend.inter_robot_loop_closure_budget', 5),
                         ('frontend.inter_robot_detection_period_sec', 5),
-                        ('frontend.nb_best_matches', 10), ('frontend.image_crop_size', None),
+                        ('frontend.nb_best_matches', 10), ('frontend.image_crop_size', 376),
                         ('frontend.intra_loop_min_inbetween_keyframes', 10),
-                        ('neighbor_management.max_heartbeat_delay_sec', 5),
-                        ('neighbor_management.init_delay_sec', 5),
+                        ('neighbor_management.max_heartbeat_delay_sec', Parameter.Type.DOUBLE),
+                        ('neighbor_management.init_delay_sec', 5.0),
                         ('neighbor_management.heartbeat_period_sec', 0.5),
                         ('frontend.detection_publication_period_sec', 1.0),
                         ('frontend.detection_publication_max_elems_per_msg',
