@@ -76,6 +76,10 @@ RGBDHandler::RGBDHandler(std::shared_ptr<rclcpp::Node> &node)
   // Publisher for global descriptors
   keyframe_data_publisher_ =
       node_->create_publisher<cslam_common_interfaces::msg::KeyframeRGB>(
+          "cslam/keyframe_data_rgb", 100);
+
+  keyframe_data_pc_publisher_ =
+      node_->create_publisher<cslam_common_interfaces::msg::KeyframePointCloud>(
           "cslam/keyframe_data", 100);
 
   // Publisher for odometry with ID
@@ -91,9 +95,14 @@ RGBDHandler::RGBDHandler(std::shared_ptr<rclcpp::Node> &node)
                 std::placeholders::_1));
 
   // Publishers to other robots local descriptors subscribers
+  std::string local_rgb_descriptors_topic = "/cslam/local_rgb_descriptors";
+  local_rgb_descriptors_publisher_ = node_->create_publisher<
+      cslam_common_interfaces::msg::LocalImageDescriptors>(local_rgb_descriptors_topic, 100);
+
+  // Publishers to other robots local descriptors subscribers
   std::string local_descriptors_topic = "/cslam/local_descriptors";
   local_descriptors_publisher_ = node_->create_publisher<
-      cslam_common_interfaces::msg::LocalImageDescriptors>(local_descriptors_topic, 100);
+      cslam_common_interfaces::msg::LocalPointCloudDescriptors>(local_descriptors_topic, 100);
 
   if (enable_visualization_)
   {
@@ -107,7 +116,7 @@ RGBDHandler::RGBDHandler(std::shared_ptr<rclcpp::Node> &node)
   // Subscriber for local descriptors
   local_descriptors_subscriber_ = node->create_subscription<
       cslam_common_interfaces::msg::LocalImageDescriptors>(
-      "/cslam/local_descriptors", 100,
+      "/cslam/local_rgb_descriptors", 100,
       std::bind(&RGBDHandler::receive_local_image_descriptors, this,
                 std::placeholders::_1));
 
@@ -244,10 +253,12 @@ void RGBDHandler::rgbd_callback(
       rtabmap_ros::timestampFromROS(stamp));
 
   received_data_queue_.push_back(std::make_pair(data, odom));
+  camera_data_.push_back(std::make_tuple(image_rect_rgb, image_rect_depth, camera_info_rgb));
   if (received_data_queue_.size() > max_queue_size_)
   {
     // Remove the oldest keyframes if we exceed the maximum size
     received_data_queue_.pop_front();
+    camera_data_.pop_front();
     RCLCPP_WARN(
         node_->get_logger(),
         "RGBD: Maximum queue size (%d) exceeded, the oldest element was removed.",
@@ -355,7 +366,9 @@ void RGBDHandler::process_new_sensor_data()
   if (!received_data_queue_.empty())
   {
     auto sensor_data = received_data_queue_.front();
+    auto camera_data = camera_data_.front();
     received_data_queue_.pop_front();
+    camera_data_.pop_front();
 
     sensor_msgs::msg::NavSatFix gps_fix;
     if (enable_gps_recording_) {
@@ -388,6 +401,7 @@ void RGBDHandler::process_new_sensor_data()
       if (generate_keyframe)
       {
         local_descriptors_map_.insert({sensor_data.first->id(), sensor_data.first});
+        local_camera_map_.insert({sensor_data.first->id(), camera_data});
       }
     }
   }
@@ -416,7 +430,26 @@ void RGBDHandler::local_descriptors_request(
   msg.matches_keyframe_id = request->matches_keyframe_id;
 
   // Publish local descriptors
-  local_descriptors_publisher_->publish(msg);
+  local_rgb_descriptors_publisher_->publish(msg);
+
+  // Fill PointCloud msg
+  cslam_common_interfaces::msg::LocalPointCloudDescriptors msg_pc;
+  msg_pc.sensor_type = "rgb";
+  clear_sensor_data(local_descriptors_map_.at(request->keyframe_id));
+  auto camera_data = local_camera_map_.at(request->keyframe_id);
+  msg_pc.rgb = *std::get<0>(camera_data);
+  msg_pc.depth = *std::get<1>(camera_data);
+  msg_pc.camera_info = *std::get<2>(camera_data);
+  msg_pc.pc_data = generate_pointcloud(local_descriptors_map_.at(request->keyframe_id));
+
+  msg_pc.depth.header = msg.data.header;
+  msg_pc.keyframe_id = request->keyframe_id;
+  msg_pc.robot_id = robot_id_;
+  msg_pc.matches_robot_id = request->matches_robot_id;
+  msg_pc.matches_keyframe_id = request->matches_keyframe_id;
+
+  // Publish local descriptors
+  local_descriptors_publisher_->publish(msg_pc);
 
   if (enable_logs_)
   {
@@ -569,6 +602,15 @@ void RGBDHandler::send_keyframe(const std::pair<std::shared_ptr<rtabmap::SensorD
 
   keyframe_data_publisher_->publish(keyframe_msg);
 
+  // PointCloud message
+  cslam_common_interfaces::msg::KeyframePointCloud keyframe_pc_msg;
+  keyframe_pc_msg.pointcloud = generate_pointcloud(keypoints_data.first);
+  keyframe_pc_msg.pointcloud.header = header;
+  keyframe_pc_msg.id = keypoints_data.first->id();
+  keyframe_pc_msg.sensor_type = "rgb";
+
+  keyframe_data_pc_publisher_->publish(keyframe_pc_msg);
+
   // Odometry message
   cslam_common_interfaces::msg::KeyframeOdom odom_msg;
   odom_msg.id = keypoints_data.first->id();
@@ -662,22 +704,26 @@ sensor_msgs::msg::PointCloud2 RGBDHandler::visualization_pointcloud_voxel_subsam
   return output_cloud;
 }
 
-void RGBDHandler::send_visualization_pointcloud(const std::shared_ptr<rtabmap::SensorData> & sensor_data)
+sensor_msgs::msg::PointCloud2 RGBDHandler::generate_pointcloud(const std::shared_ptr<rtabmap::SensorData> & sensor_data)
 {
-  cslam_common_interfaces::msg::VizPointCloud keyframe_pointcloud_msg;
-  keyframe_pointcloud_msg.robot_id = robot_id_;
-  keyframe_pointcloud_msg.keyframe_id = sensor_data->id();
   std_msgs::msg::Header header;
   header.stamp = node_->now();
   header.frame_id = MAP_FRAME_ID(robot_id_);
   auto pointcloud_msg = create_colored_pointcloud(sensor_data, header);
 
+  return pointcloud_msg;
+}
+
+void RGBDHandler::send_visualization_pointcloud(const std::shared_ptr<rtabmap::SensorData> & sensor_data)
+{
+  cslam_common_interfaces::msg::VizPointCloud keyframe_pointcloud_msg;
+  keyframe_pointcloud_msg.robot_id = robot_id_;
+  keyframe_pointcloud_msg.keyframe_id = sensor_data->id();
+  keyframe_pointcloud_msg.pointcloud = generate_pointcloud(sensor_data);
   if (visualization_voxel_size_ > 0.0)
   {
-    pointcloud_msg = visualization_pointcloud_voxel_subsampling(pointcloud_msg);
+    keyframe_pointcloud_msg.pointcloud = visualization_pointcloud_voxel_subsampling(keyframe_pointcloud_msg.pointcloud);
   }
-
-  keyframe_pointcloud_msg.pointcloud = pointcloud_msg;
   keyframe_pointcloud_publisher_->publish(keyframe_pointcloud_msg);
 }
 

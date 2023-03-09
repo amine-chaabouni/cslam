@@ -40,6 +40,9 @@ sensor_msgs::msg::PointCloud2 create_colored_pointcloud(const std::shared_ptr<rt
     depth_image_to_pointcloud<float>(sensor_data, cloud_msg, model);
   } else {
     // Depth image has unsupported encoding
+    RCLCPP_INFO(
+      rclcpp::get_logger("cslam"),
+      "Unsupported Depth encoding");
     return *cloud_msg;
   }
 
@@ -50,8 +53,12 @@ sensor_msgs::msg::PointCloud2 create_colored_pointcloud(const std::shared_ptr<rt
     add_rgb_to_pointcloud(sensor_data, cloud_msg);
   } else {
     // RGB image has unsupported encoding
+    RCLCPP_INFO(
+      rclcpp::get_logger("cslam"),
+      "Unsupported RGB encoding");
     return *cloud_msg;
   }
+  cloud_msg->is_dense = false;
   return *cloud_msg;
 }
 

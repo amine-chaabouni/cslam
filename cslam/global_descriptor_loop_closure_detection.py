@@ -24,6 +24,7 @@ from rclpy.clock import Clock
 from cslam.neighbors_manager import NeighborManager
 from cslam.utils.misc import dict_to_list_chunks
 
+
 class GlobalDescriptorLoopClosureDetection(object):
     """ Global descriptor matching """
 
@@ -39,6 +40,11 @@ class GlobalDescriptorLoopClosureDetection(object):
         self.lcm = LoopClosureSparseMatching(params)
 
         # Place Recognition network setup
+        from cslam.lidar_pr.scancontext import ScanContext
+        global icp_utils
+        import cslam.lidar_pr.icp_utils as icp_utils
+        self.global_descriptor_pc = ScanContext(self.params, self.node)
+
         if self.params['frontend.global_descriptor_technique'].lower(
         ) == 'netvlad':
             from cslam.vpr.netvlad import NetVLAD
@@ -62,7 +68,7 @@ class GlobalDescriptorLoopClosureDetection(object):
         # ROS 2 objects setup
         self.params[
             'frontend.global_descriptors_topic'] = '/cslam/' + self.node.get_parameter(
-                'frontend.global_descriptors_topic').value
+            'frontend.global_descriptors_topic').value
         self.global_descriptor_publisher = self.node.create_publisher(
             GlobalDescriptors,
             self.params['frontend.global_descriptors_topic'], 100)
@@ -73,7 +79,7 @@ class GlobalDescriptorLoopClosureDetection(object):
 
         self.params[
             'frontend.inter_robot_matches_topic'] = '/cslam/' + self.node.get_parameter(
-                'frontend.inter_robot_matches_topic').value
+            'frontend.inter_robot_matches_topic').value
         self.inter_robot_matches_publisher = self.node.create_publisher(
             InterRobotMatches,
             self.params['frontend.inter_robot_matches_topic'], 100)
@@ -82,15 +88,15 @@ class GlobalDescriptorLoopClosureDetection(object):
             self.params['frontend.inter_robot_matches_topic'],
             self.inter_robot_matches_callback, 100)
 
-        if self.keyframe_type == "rgb":
-            self.receive_keyframe_subscriber = self.node.create_subscription(
-                KeyframeRGB, 'cslam/keyframe_data', self.receive_keyframe, 100)
-        elif self.keyframe_type == "pointcloud":
-            self.receive_keyframe_subscriber = self.node.create_subscription(
-                KeyframePointCloud, 'cslam/keyframe_data', self.receive_keyframe,
-                100)
-        else:
-            self.node.get_logger().error("Unknown keyframe type")
+        # if self.keyframe_type == "rgb":
+        #     self.receive_keyframe_subscriber = self.node.create_subscription(
+        #         KeyframeRGB, 'cslam/keyframe_data_rgb', self.receive_keyframe, 100)
+        # elif self.keyframe_type == "pointcloud":
+        self.receive_keyframe_subscriber = self.node.create_subscription(
+            KeyframePointCloud, 'cslam/keyframe_data', self.receive_keyframe,
+            100)
+        # else:
+        #     self.node.get_logger().error("Unknown keyframe type")
 
         self.local_match_publisher = self.node.create_publisher(
             LocalKeyframeMatch, 'cslam/local_keyframe_match', 100)
@@ -103,8 +109,8 @@ class GlobalDescriptorLoopClosureDetection(object):
         for i in range(self.params['max_nb_robots']):
             self.local_descriptors_request_publishers[
                 i] = self.node.create_publisher(
-                    LocalDescriptorsRequest,
-                    '/r' + str(i) + '/cslam/local_descriptors_request', 100)
+                LocalDescriptorsRequest,
+                '/r' + str(i) + '/cslam/local_descriptors_request', 100)
 
         # Listen for changes in node liveliness
         self.neighbor_manager = NeighborManager(
@@ -136,14 +142,14 @@ class GlobalDescriptorLoopClosureDetection(object):
             self.log_total_matches_selected = 0
             self.log_detection_cumulative_communication = 0
             self.log_total_sparsification_computation_time = 0.0
-        
+
         # Import OpenCV at the end to avoid issue on NVIDIA Jetson Xavier: https://github.com/opencv/opencv/issues/14884#issuecomment-599852128
         global cv2
         import cv2
         global CvBridge
         from cv_bridge import CvBridge
 
-        self.gpu_start_time = time.time() 
+        self.gpu_start_time = time.time()
 
     def add_global_descriptor_to_map(self, embedding, kf_id):
         """ Add global descriptor to matching list
@@ -213,8 +219,8 @@ class GlobalDescriptorLoopClosureDetection(object):
                 if self.params["evaluation.enable_logs"]:
                     self.log_detection_cumulative_communication += len(
                         global_descriptors.descriptors) * len(
-                            global_descriptors.descriptors[0].descriptor
-                        ) * 4  # bytes
+                        global_descriptors.descriptors[0].descriptor
+                    ) * 4  # bytes
 
             self.delete_useless_descriptors()
             if self.params["evaluation.enable_logs"]:
@@ -245,8 +251,8 @@ class GlobalDescriptorLoopClosureDetection(object):
 
             chuncks = dict_to_list_chunks(
                 self.inter_robot_matches_buffer, from_match_idx -
-                self.inter_robot_matches_buffer.peekitem(0)[0], self.
-                params['frontend.detection_publication_max_elems_per_msg'])
+                                                 self.inter_robot_matches_buffer.peekitem(0)[0], self.
+                                                 params['frontend.detection_publication_max_elems_per_msg'])
 
             # Don't transmit matches that should have already been detected by the other robot
             _, neighbors_in_range_list = self.neighbor_manager.check_neighbors_in_range()
@@ -311,7 +317,7 @@ class GlobalDescriptorLoopClosureDetection(object):
         """
         neighbors_is_in_range, neighbors_in_range_list = self.neighbor_manager.check_neighbors_in_range(
         )
-        #self.node.get_logger().info('Neighbors in range: ' +  str(neighbors_in_range_list))
+        # self.node.get_logger().info('Neighbors in range: ' +  str(neighbors_in_range_list))
         # Check if the robot is the broker
         if len(neighbors_in_range_list
                ) > 0 and self.neighbor_manager.local_robot_is_broker():
@@ -320,12 +326,13 @@ class GlobalDescriptorLoopClosureDetection(object):
             selection = self.lcm.select_candidates(
                 self.params["frontend.inter_robot_loop_closure_budget"],
                 neighbors_is_in_range)
-            
+
             # Extract and publish local descriptors
             vertices_info = self.edge_list_to_vertices(selection)
             broker = Broker(selection, neighbors_in_range_list)
             for selected_vertices_set in broker.brokerage(
                     self.params["frontend.use_vertex_cover_selection"]):
+                self.node.get_logger().info(f"selected_vertices = {len(selected_vertices_set)}")
                 for v in selected_vertices_set:
                     # Call to send publish local descriptors
                     msg = LocalDescriptorsRequest()
@@ -382,22 +389,21 @@ class GlobalDescriptorLoopClosureDetection(object):
                 vertices[key1] = [[s.robot0_id], [s.robot0_keyframe_id]]
         return vertices
 
-    def receive_keyframe(self, msg):
+    def receive_keyframe_pc(self, msg):
+        pass
+
+    def receive_keyframe(self, msg: KeyframePointCloud):
         """Callback to add a keyframe 
 
         Args:
             msg (cslam_common_interfaces::msg::KeyframeRGB or KeyframePointCloud): Keyframe data
         """
         # Place recognition descriptor processing
-        embedding = []
-        if self.keyframe_type == "rgb":
-            bridge = CvBridge()
-            cv_image = bridge.imgmsg_to_cv2(msg.image,
-                                            desired_encoding='passthrough')
-            embedding = self.global_descriptor.compute_embedding(cv_image)
-        elif self.keyframe_type == "pointcloud":
-            embedding = self.global_descriptor.compute_embedding(
-                icp_utils.ros_pointcloud_to_points(msg.pointcloud))
+        if msg.sensor_type == "rgb":
+            msg.pointcloud = icp_utils.open3d_to_ros(icp_utils.downsample_ros_pointcloud(msg.pointcloud, 0.5))
+
+        embedding = self.global_descriptor_pc.compute_embedding(
+            icp_utils.ros_pointcloud_to_points(msg.pointcloud))
 
         self.add_global_descriptor_to_map(embedding, msg.id)
 

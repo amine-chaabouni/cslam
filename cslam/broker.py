@@ -74,10 +74,7 @@ class Broker(object):
             List(set((int,int)): Vertices to be transmitted
         """
         if self.is_multi_robot_graph:
-            if use_vertex_cover:
-                return self.vertex_cover()
-            else:
-                return self.simple_dialog()
+            return self.simple_dialog()
         else:
             return []
 

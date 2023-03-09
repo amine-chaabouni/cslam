@@ -31,10 +31,12 @@
 #include <chrono>
 #include <cslam_common_interfaces/msg/keyframe_odom.hpp>
 #include <cslam_common_interfaces/msg/keyframe_rgb.hpp>
+#include <cslam_common_interfaces/msg/keyframe_point_cloud.hpp>
 #include <cslam_common_interfaces/msg/viz_point_cloud.hpp>
 #include <cslam_common_interfaces/msg/inter_robot_loop_closure.hpp>
 #include <cslam_common_interfaces/msg/local_descriptors_request.hpp>
 #include <cslam_common_interfaces/msg/local_image_descriptors.hpp>
+#include <cslam_common_interfaces/msg/local_point_cloud_descriptors.hpp>
 #include <cslam_common_interfaces/msg/local_keyframe_match.hpp>
 #include <cslam_common_interfaces/msg/intra_robot_loop_closure.hpp>
 #include <diagnostic_msgs/msg/key_value.hpp>
@@ -167,6 +169,13 @@ namespace cslam
         void send_visualization_keypoints(const std::pair<std::shared_ptr<rtabmap::SensorData>, std::shared_ptr<const nav_msgs::msg::Odometry>> &keypoints_data);
 
         /**
+        * @brief generate pointcloud from sensor data
+        *
+        * @param sensor_data RGBD image
+        */
+        sensor_msgs::msg::PointCloud2 generate_pointcloud(const std::shared_ptr<rtabmap::SensorData> & sensor_data);
+
+        /**
          * @brief Send colored pointcloud for visualizations
          *
          * @param sensor_data RGBD image
@@ -216,9 +225,14 @@ namespace cslam
                              nav_msgs::msg::Odometry::ConstSharedPtr>>
             received_data_queue_;
 
+        std::deque<std::tuple<sensor_msgs::msg::Image::ConstSharedPtr, sensor_msgs::msg::Image::ConstSharedPtr, sensor_msgs::msg::CameraInfo::ConstSharedPtr>>
+            camera_data_;
+
         std::shared_ptr<rtabmap::SensorData> previous_keyframe_;
 
         std::map<int, std::shared_ptr<rtabmap::SensorData>> local_descriptors_map_;
+        std::map<int, std::tuple<sensor_msgs::msg::Image::ConstSharedPtr, sensor_msgs::msg::Image::ConstSharedPtr, sensor_msgs::msg::CameraInfo::ConstSharedPtr>>
+         local_camera_map_;
 
         std::shared_ptr<rclcpp::Node> node_;
 
@@ -233,11 +247,18 @@ namespace cslam
 
         rclcpp::Publisher<
             cslam_common_interfaces::msg::LocalImageDescriptors>::SharedPtr
-            local_descriptors_publisher_,
+            local_rgb_descriptors_publisher_,
             visualization_local_descriptors_publisher_;
+
+        rclcpp::Publisher<
+            cslam_common_interfaces::msg::LocalPointCloudDescriptors>::SharedPtr
+            local_descriptors_publisher_;
 
         rclcpp::Publisher<cslam_common_interfaces::msg::KeyframeRGB>::SharedPtr
             keyframe_data_publisher_;
+
+        rclcpp::Publisher<cslam_common_interfaces::msg::KeyframePointCloud>::SharedPtr
+            keyframe_data_pc_publisher_;
 
         rclcpp::Publisher<cslam_common_interfaces::msg::KeyframeOdom>::SharedPtr
             keyframe_odom_publisher_;
