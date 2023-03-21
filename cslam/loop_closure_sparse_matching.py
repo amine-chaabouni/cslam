@@ -1,7 +1,9 @@
 import numpy as np
-from cslam.nns_matching import NearestNeighborsMatching
-from cslam.lidar_pr.scancontext_matching import ScanContextMatching
+
+from cc_cslam.lidar_pr.scancontext_matching import ScanContextMatching
 from cslam.algebraic_connectivity_maximization import AlgebraicConnectivityMaximization, EdgeInterRobot
+from cslam.nns_matching import NearestNeighborsMatching
+
 
 class LoopClosureSparseMatching(object):
     """Sparse matching for loop closure detection
@@ -48,7 +50,7 @@ class LoopClosureSparseMatching(object):
                 if kf is not None:
                     if similarity >= self.params['frontend.similarity_threshold']:
                         match = EdgeInterRobot(self.params['robot_id'], keyframe_id, i, kf,
-                                           similarity)
+                                               similarity)
                         self.candidate_selector.add_match(match)
                         matches.append(match)
         return matches
@@ -64,16 +66,16 @@ class LoopClosureSparseMatching(object):
 
         match = None
         kf, similarity = self.local_nnsm.search_best(np.asarray(msg.descriptor))
-        if kf is not None:   
+        if kf is not None:
             if similarity >= self.params['frontend.similarity_threshold']:
                 match = EdgeInterRobot(self.params['robot_id'], kf, msg.robot_id,
-                                   msg.keyframe_id, similarity)
+                                       msg.keyframe_id, similarity)
                 self.candidate_selector.add_match(match)
         return match
 
     def match_local_loop_closures(self, descriptor, kf_id):
         kfs, similarities = self.local_nnsm.search(descriptor,
-                                         k=self.params['frontend.nb_best_matches'])
+                                                   k=self.params['frontend.nb_best_matches'])
 
         if len(kfs) > 0 and kfs[0] == kf_id:
             kfs, similarities = kfs[1:], similarities[1:]
@@ -104,7 +106,7 @@ class LoopClosureSparseMatching(object):
 
         Returns:
             list(EdgeInterRobot): selected edges
-        """   
+        """
         return self.candidate_selector.select_candidates(
             number_of_candidates, is_neighbor_in_range,
             greedy_initialization)

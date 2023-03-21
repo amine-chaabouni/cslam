@@ -40,9 +40,9 @@ class GlobalDescriptorLoopClosureDetection(object):
         self.lcm = LoopClosureSparseMatching(params)
 
         # Place Recognition network setup
-        from cslam.lidar_pr.scancontext import ScanContext
+        from cc_cslam.lidar_pr.scancontext import ScanContext
         global icp_utils
-        import cslam.lidar_pr.icp_utils as icp_utils
+        import cc_cslam.lidar_pr.icp_utils as icp_utils
         self.global_descriptor_pc = ScanContext(self.params, self.node)
 
         if self.params['frontend.global_descriptor_technique'].lower(
@@ -53,9 +53,9 @@ class GlobalDescriptorLoopClosureDetection(object):
             self.keyframe_type = "rgb"
         elif self.params['frontend.global_descriptor_technique'].lower(
         ) == 'scancontext':
-            from cslam.lidar_pr.scancontext import ScanContext
+            from cc_cslam.lidar_pr.scancontext import ScanContext
             global icp_utils
-            import cslam.lidar_pr.icp_utils as icp_utils
+            import cc_cslam.lidar_pr.icp_utils as icp_utils
             self.node.get_logger().info('Using ScanContext.')
             self.global_descriptor = ScanContext(self.params, self.node)
             self.keyframe_type = "pointcloud"

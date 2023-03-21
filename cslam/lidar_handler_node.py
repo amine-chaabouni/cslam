@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-import numpy as np
-from cv_bridge import CvBridge
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from sensor_msgs.msg import PointCloud2, PointField, NavSatFix
-from nav_msgs.msg import Odometry
+import rclpy
 from cslam_common_interfaces.msg import KeyframeOdom, KeyframePointCloud
 from cslam_common_interfaces.msg import LocalDescriptorsRequest, LocalPointCloudDescriptors, InterRobotLoopClosure, IntraRobotLoopClosure, LocalKeyframeMatch
 from cslam_common_interfaces.msg import VizPointCloud
-import cslam.lidar_pr.icp_utils as icp_utils
-import rclpy
-from rclpy.node import Node
-from rclpy.clock import Clock
-from rclpy.parameter import Parameter
+from cv_bridge import CvBridge
 from diagnostic_msgs.msg import KeyValue
+from message_filters import ApproximateTimeSynchronizer, Subscriber
+from nav_msgs.msg import Odometry
+from rclpy.clock import Clock
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from sensor_msgs.msg import PointCloud2, NavSatFix
 
+import cc_cslam.lidar_pr.icp_utils as icp_utils
 from cc_cslam.utils.ros_o3d import camera_info_to_o3d, rgbd_to_pointcloud
 
 
