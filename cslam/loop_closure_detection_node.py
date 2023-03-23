@@ -3,6 +3,8 @@
 # Abstraction to support multiple implementations of loop closure detection for benchmarking
 
 import rclpy
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy import Parameter
 from rclpy.node import Node
 from rclpy.clock import Clock
 from sensor_msgs.msg import Image
@@ -19,16 +21,16 @@ class LoopClosureDetection(Node):
 
         self.declare_parameters(
             namespace='',
-            parameters=[('frontend.similarity_threshold', None),
-                        ('frontend.global_descriptor_technique', None),
-                        ('frontend.netvlad.pca_checkpoint', None), ('frontend.nn_checkpoint', None),
-                        ('robot_id', None), ('max_nb_robots', None),
+            parameters=[('frontend.similarity_threshold', None, ParameterDescriptor(dynamic_typing=True)),
+                        ('frontend.global_descriptor_technique', None, ParameterDescriptor(dynamic_typing=True)),
+                        ('frontend.netvlad.pca_checkpoint', None, ParameterDescriptor(dynamic_typing=True)), ('frontend.nn_checkpoint', None, ParameterDescriptor(dynamic_typing=True)),
+                        ('robot_id', None, ParameterDescriptor(dynamic_typing=True)), ('max_nb_robots', None, ParameterDescriptor(dynamic_typing=True)),
                         ('frontend.inter_robot_loop_closure_budget', 5),
                         ('frontend.inter_robot_detection_period_sec', 5),
-                        ('frontend.nb_best_matches', 10), ('frontend.image_crop_size', None),
+                        ('frontend.nb_best_matches', 10), ('frontend.image_crop_size', None, ParameterDescriptor(dynamic_typing=True)),
                         ('frontend.intra_loop_min_inbetween_keyframes', 10),
-                        ('neighbor_management.max_heartbeat_delay_sec', 5),
-                        ('neighbor_management.init_delay_sec', 5),
+                        ('neighbor_management.max_heartbeat_delay_sec', Parameter.Type.DOUBLE),
+                        ('neighbor_management.init_delay_sec', 5.0),
                         ('neighbor_management.heartbeat_period_sec', 0.5),
                         ('frontend.detection_publication_period_sec', 1.0),
                         ('frontend.detection_publication_max_elems_per_msg',

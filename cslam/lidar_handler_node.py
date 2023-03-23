@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+from rcl_interfaces.msg import ParameterDescriptor
 from sensor_msgs.msg import PointCloud2, PointField, NavSatFix
 from nav_msgs.msg import Odometry
 from cslam_common_interfaces.msg import KeyframeOdom, KeyframePointCloud
@@ -12,15 +13,18 @@ from rclpy.node import Node
 from rclpy.clock import Clock
 from diagnostic_msgs.msg import KeyValue
 
-class LidarHandler: 
+
+class LidarHandler:
     """Front-End data handler for lidar data
     """
+
     def __init__(self, node, params):
         self.node = node
         self.params = params
 
-        tss = ApproximateTimeSynchronizer( [ Subscriber(self.node, PointCloud2, self.params["frontend.pointcloud_topic"]),
-                                  Subscriber(self.node, Odometry, self.params["frontend.odom_topic"])], 100, self.params["frontend.pointcloud_odom_approx_time_sync_s"] )
+        tss = ApproximateTimeSynchronizer([Subscriber(self.node, PointCloud2, self.params["frontend.pointcloud_topic"]),
+                                           Subscriber(self.node, Odometry, self.params["frontend.odom_topic"])], 100,
+                                          self.params["frontend.pointcloud_odom_approx_time_sync_s"])
         tss.registerCallback(self.lidar_callback)
 
         self.keyframe_odom_publisher = self.node.create_publisher(KeyframeOdom, "cslam/keyframe_odom", 100)
@@ -28,15 +32,16 @@ class LidarHandler:
         self.keyframe_pointcloud_publisher = self.node.create_publisher(KeyframePointCloud, "cslam/keyframe_data", 100)
 
         self.send_local_descriptors_subscriber = self.node.create_subscription(LocalDescriptorsRequest,
-                                                                            "cslam/local_descriptors_request", self.send_local_descriptors_request, 100)
+                                                                               "cslam/local_descriptors_request", self.send_local_descriptors_request, 100)
 
         self.local_keyframe_match_subscriber = self.node.create_subscription(LocalKeyframeMatch,
-                                                                            "cslam/local_keyframe_match", self.receive_local_keyframe_match, 100)
-        
+                                                                             "cslam/local_keyframe_match", self.receive_local_keyframe_match, 100)
+
         self.pointcloud_descriptors_publisher = self.node.create_publisher(LocalPointCloudDescriptors, "/cslam/local_descriptors", 100)
-        
-        self.pointcloud_descriptors_subscriber = self.node.create_subscription(LocalPointCloudDescriptors, "/cslam/local_descriptors", self.receive_local_descriptors, 100)
-        
+
+        self.pointcloud_descriptors_subscriber = self.node.create_subscription(LocalPointCloudDescriptors, "/cslam/local_descriptors",
+                                                                               self.receive_local_descriptors, 100)
+
         self.intra_robot_loop_closure_publisher = self.node.create_publisher(IntraRobotLoopClosure, "cslam/intra_robot_loop_closure", 100)
 
         self.inter_robot_loop_closure_publisher = self.node.create_publisher(InterRobotLoopClosure, "/cslam/inter_robot_loop_closure", 100)
@@ -44,7 +49,7 @@ class LidarHandler:
         self.viz_pointcloud_publisher = self.node.create_publisher(VizPointCloud, "/cslam/viz/keyframe_pointcloud", 100)
 
         period_ms = self.params["frontend.map_manager_process_period_ms"]
-        self.processing_timer = self.node.create_timer(float(period_ms)/1000, self.process_new_sensor_data, clock=Clock())
+        self.processing_timer = self.node.create_timer(float(period_ms) / 1000, self.process_new_sensor_data, clock=Clock())
 
         self.received_data = []
         self.local_descriptors_map = {}
@@ -94,8 +99,9 @@ class LidarHandler:
         self.pointcloud_descriptors_publisher.publish(out_msg)
         if self.params["evaluation.enable_logs"]:
             self.log_local_descriptors_cumulative_communication += len(out_msg.data.data)
-            self.log_publisher.publish(KeyValue(key="local_descriptors_cumulative_communication", value=str(self.log_local_descriptors_cumulative_communication)))
-    
+            self.log_publisher.publish(
+                KeyValue(key="local_descriptors_cumulative_communication", value=str(self.log_local_descriptors_cumulative_communication)))
+
     def receive_local_descriptors(self, msg):
         """Callback for local descriptors from other robots
         """
@@ -105,7 +111,8 @@ class LidarHandler:
                 frame_ids.append(msg.matches_keyframe_id[i])
         for frame_id in frame_ids:
             pc = self.local_descriptors_map[frame_id]
-            transform, success = icp_utils.compute_transform(pc, icp_utils.ros_to_open3d(msg.data), self.params["frontend.voxel_size"], self.params["frontend.registration_min_inliers"])
+            transform, success = icp_utils.compute_transform(pc, icp_utils.ros_to_open3d(msg.data), self.params["frontend.voxel_size"],
+                                                             self.params["frontend.registration_min_inliers"])
             out_msg = InterRobotLoopClosure()
             out_msg.robot0_id = self.params["robot_id"]
             out_msg.robot0_keyframe_id = frame_id
@@ -137,7 +144,8 @@ class LidarHandler:
     def odom_distance_squared(self, odom0, odom1):
         """Compute the squared distance between two odometry messages
         """
-        return (odom0.pose.pose.position.x - odom1.pose.pose.position.x)**2 + (odom0.pose.pose.position.y - odom1.pose.pose.position.y)**2 + (odom0.pose.pose.position.z - odom1.pose.pose.position.z)**2
+        return (odom0.pose.pose.position.x - odom1.pose.pose.position.x) ** 2 + (odom0.pose.pose.position.y - odom1.pose.pose.position.y) ** 2 + (
+                    odom0.pose.pose.position.z - odom1.pose.pose.position.z) ** 2
 
     def generate_new_keyframe(self, msg):
         """Check if we should generate a new keyframe
@@ -150,9 +158,9 @@ class LidarHandler:
         """
         if self.previous_odom is None:
             self.previous_odom = msg[1]
-            return True 
+            return True
         dist = self.odom_distance_squared(self.previous_odom, msg[1])
-        if dist > self.params["frontend.keyframe_generation_ratio_distance"]**2:
+        if dist > self.params["frontend.keyframe_generation_ratio_distance"] ** 2:
             self.previous_odom = msg[1]
             return True
         else:
@@ -195,29 +203,29 @@ class LidarHandler:
                     self.viz_pointcloud_publisher.publish(viz_msg)
                 self.nb_local_keyframes = self.nb_local_keyframes + 1
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     rclpy.init(args=None)
     node = Node("map_manager")
     node.declare_parameters(
-            namespace='',
-            parameters=[('frontend.pointcloud_topic', None),
-                        ('frontend.odom_topic', None),
-                        ('frontend.map_manager_process_period_ms', None),
-                        ('frontend.voxel_size', None),
-                        ('frontend.registration_min_inliers', None),
-                        ('frontend.keyframe_generation_ratio_distance', 0.5),
-                        ('frontend.pointcloud_odom_approx_time_sync_s', 0.1),
-                        ('robot_id', None),           
-                        ('evaluation.enable_logs', False),  
-                        ('evaluation.enable_gps_recording', False), 
-                        ('evaluation.gps_topic', ""),            
-                        ('evaluation.gps_topic', ""),        
-                        ('visualization.enable', False),
-                        ])
+        namespace='',
+        parameters=[('frontend.pointcloud_topic', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('frontend.odom_topic', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('frontend.map_manager_process_period_ms', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('frontend.voxel_size', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('frontend.registration_min_inliers', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('frontend.keyframe_generation_ratio_distance', 0.5),
+                    ('frontend.pointcloud_odom_approx_time_sync_s', 0.1),
+                    ('robot_id', None, ParameterDescriptor(dynamic_typing=True)),
+                    ('evaluation.enable_logs', False),
+                    ('evaluation.enable_gps_recording', False),
+                    ('evaluation.gps_topic', ""),
+                    ('evaluation.gps_topic', ""),
+                    ('visualization.enable', False),
+                    ])
     params = {}
     params['frontend.pointcloud_topic'] = node.get_parameter(
-        'frontend.pointcloud_topic').value 
+        'frontend.pointcloud_topic').value
     params['frontend.odom_topic'] = node.get_parameter(
         'frontend.odom_topic').value
     params['frontend.map_manager_process_period_ms'] = node.get_parameter(
@@ -225,7 +233,7 @@ if __name__ == '__main__':
     params['frontend.voxel_size'] = node.get_parameter(
         'frontend.voxel_size').value
     params['frontend.registration_min_inliers'] = node.get_parameter(
-        'frontend.registration_min_inliers').value 
+        'frontend.registration_min_inliers').value
     params['frontend.keyframe_generation_ratio_distance'] = node.get_parameter(
         'frontend.keyframe_generation_ratio_distance').value
     params['frontend.pointcloud_odom_approx_time_sync_s'] = node.get_parameter(
@@ -233,13 +241,13 @@ if __name__ == '__main__':
     params['robot_id'] = node.get_parameter(
         'robot_id').value
     params["evaluation.enable_logs"] = node.get_parameter(
-            'evaluation.enable_logs').value
+        'evaluation.enable_logs').value
     params["evaluation.enable_gps_recording"] = node.get_parameter(
-            'evaluation.enable_gps_recording').value
+        'evaluation.enable_gps_recording').value
     params["evaluation.gps_topic"] = node.get_parameter(
-            'evaluation.gps_topic').value
+        'evaluation.gps_topic').value
     params["visualization.enable"] = node.get_parameter(
-            'visualization.enable').value
+        'visualization.enable').value
     lidar_handler = LidarHandler(node, params)
     node.get_logger().info('Initialization done.')
     rclpy.spin(node)
